@@ -54,7 +54,7 @@ class ReplayMemory:
             self.rewards2[self.current2] = self.rewards[self.current+i]
             self.screens2[self.current2,...] = self.screens[self.current+i, ...]
             self.terminals2[self.current2] = self.terminals[self.current+i]
-            self.count = max(self.count2, self.current2 +1)
+            self.count2 = max(self.count2, self.current2 +1)
             self.current2 = (self.current2 +1) % self.memory_size
 
 

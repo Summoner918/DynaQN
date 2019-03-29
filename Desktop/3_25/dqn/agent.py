@@ -144,6 +144,8 @@ class Agent(BaseModel):
             if self.step % self.train_frequency == 0:
                 self.q_learning_mini_batch()
 
+            if self.step % (self.train_frequency * 99) == 0:
+                self.q_learning_mini_batch2()
 
 
 
@@ -151,10 +153,46 @@ class Agent(BaseModel):
                 self.update_target_q_network()
 
     def q_learning_mini_batch(self):
-        if self.memory.count < self.history_length:
+        if self.memory.count+ self.memory.count2 < self.history_length:
             return
         else:
             s_t, action, reward, s_t_plus_1, terminal = self.memory.sample()
+
+        t = time.time()
+        if self.double_q:
+            # Double Q-learning
+            pred_action = self.q_action.eval({self.s_t: s_t_plus_1})
+
+            q_t_plus_1_with_pred_action = self.target_q_with_idx.eval({
+                self.target_s_t: s_t_plus_1,
+                self.target_q_idx: [[idx, pred_a] for idx, pred_a in enumerate(pred_action)]
+            })
+            target_q_t = (1. - terminal) * self.discount * q_t_plus_1_with_pred_action + reward
+        else:
+            q_t_plus_1 = self.target_q.eval({self.target_s_t: s_t_plus_1})
+            q_t_s = self.target_q.eval({self.target_s_t: s_t})
+            V = np.max(q_t_s, axis=1)
+            terminal = np.array(terminal) + 0.
+            max_q_t_plus_1 = np.max(q_t_plus_1, axis=1)
+            target_q_t = (1. - terminal) * self.discount * max_q_t_plus_1 + reward-alpha*V
+
+        _, q_t, loss, summary_str = self.sess.run([self.optim, self.q, self.loss, self.q_summary], {
+            self.target_q_t: target_q_t,
+            self.action: action,
+            self.s_t: s_t,
+            self.learning_rate_step: self.step,
+        })
+
+        #self.writer.add_summary(summary_str, self.step)
+        self.total_loss += loss
+        self.total_q += q_t.mean()
+        self.update_count += 1
+
+    def q_learning_mini_batch2(self):
+        if self.memory.count + self.memory.count2 < self.history_length:
+            return
+        else:
+            s_t, action, reward, s_t_plus_1, terminal = self.memory.sample2()
 
         t = time.time()
         if self.double_q:
